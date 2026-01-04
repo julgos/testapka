@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Solar Invest</title>
+    <title>Solar Invest App</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0066CC">
@@ -16,224 +16,252 @@
     <style>
         :root {
             --primary: #0066CC;
-            --bg-sidebar: #F0F7FF;
+            --bg-light: #F0F7FF;
             --text-main: #004080;
+            --nav-height: 65px;
         }
 
-        /* --- BAZA (DESKTOP) --- */
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
             margin: 0;
             padding: 0;
-            display: flex; /* Układ obok siebie na PC */
-            height: 100vh; /* Na PC sztywna wysokość */
-            overflow: hidden; /* Na PC brak paska przewijania body */
-            color: #333;
             background-color: white;
-        }
-
-        /* LEWY PANEL (SIDEBAR) */
-        .sidebar {
-            width: 350px;
-            background-color: var(--bg-sidebar);
-            border-right: 1px solid #CCE5FF;
-            padding: 20px;
-            overflow-y: auto; /* Przewijanie tylko w pasku */
-            flex-shrink: 0;
+            color: #333;
+            /* Zablokowanie przewijania całej strony, bo będziemy przewijać widoki */
+            overflow: hidden; 
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+        }
+
+        /* --- GÓRNA BELKA (HEADER) --- */
+        header {
+            background: white;
+            border-bottom: 1px solid #ddd;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-shrink: 0; /* Nie zmniejszaj nagłówka */
             z-index: 1000;
         }
+        header img { height: 30px; }
+        header h1 { margin: 0; font-size: 18px; color: var(--text-main); }
 
-        /* PRAWA STRONA (MAIN) */
-        .main { 
-            flex: 1; 
-            padding: 30px; 
-            overflow-y: auto; /* Przewijanie treści głównej */
-            background-color: white; 
+        /* --- KONTENER WIDOKÓW --- */
+        .viewport {
+            flex: 1; /* Zajmij całą dostępną przestrzeń */
             position: relative;
+            overflow: hidden;
         }
 
-        /* --- STYLE ELEMENTÓW --- */
-        .logo-area { text-align: center; margin-bottom: 10px; }
-        .logo-area img { width: 70px; }
-        .app-title { font-size: 22px; font-weight: bold; color: var(--text-main); margin-top: 5px; }
-
-        .control-group {
+        /* Widoki (Tabs) */
+        .tab-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto; /* Przewijanie wewnątrz widoku */
+            padding: 20px;
+            box-sizing: border-box;
             background: white;
+            display: none; /* Domyślnie ukryte */
+            /* Dodatkowy padding na dole, żeby treść nie wchodziła pod menu */
+            padding-bottom: calc(var(--nav-height) + 20px); 
+        }
+
+        .tab-content.active { display: block; animation: fadeIn 0.3s; }
+
+        /* --- DOLNE MENU (BOTTOM NAV) --- */
+        .bottom-nav {
+            height: var(--nav-height);
+            background: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-shrink: 0;
+            z-index: 2000;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+        }
+
+        .nav-btn {
+            background: none;
+            border: none;
+            color: #999;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            width: 100%;
+            padding: 10px;
+        }
+
+        .nav-btn i { font-size: 24px; margin-bottom: 4px; font-style: normal; }
+        .nav-btn.active { color: var(--primary); font-weight: bold; }
+
+        /* --- STYLE ELEMENTÓW (Z poprzedniego kodu) --- */
+        .control-group {
+            background: var(--bg-light);
             padding: 15px;
-            border-radius: 12px; /* Bardziej obłe */
+            border-radius: 12px;
+            margin-bottom: 15px;
             border: 1px solid #dae8f5;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         }
 
         label { display: block; font-weight: bold; color: var(--primary); font-size: 0.9em; margin-bottom: 8px; margin-top: 10px; }
-        label:first-child { margin-top: 0; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; background: white; font-size: 16px; }
         
-        input[type="number"], select { 
-            width: 100%; padding: 12px; /* Większe pod palec */
-            box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; /* Żeby iPhone nie przybliżał */
-        }
-        
-        input[type="range"] { width: 100%; margin: 10px 0; }
-
-        .info-box {
-            background-color: #e8f4ff;
-            color: #004080;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 0.9em;
-            border-left: 4px solid var(--primary);
-            line-height: 1.4;
-        }
-
         /* MAPA */
         #map { 
-            height: 450px; 
+            height: 50vh; /* Mapa na pół ekranu */
             width: 100%; 
             border-radius: 12px; 
-            margin-bottom: 20px; 
+            margin-bottom: 15px; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
-            z-index: 1;
         }
 
         /* WYNIKI */
-        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .results-container { display: none; margin-top: 15px; }
+        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         
         .kpi-card {
             background-color: #F8FDFF;
             border: 1px solid #D1E9FF;
-            border-left: 5px solid var(--primary);
-            padding: 15px;
+            border-left: 4px solid var(--primary);
+            padding: 12px;
             border-radius: 10px;
         }
-        
-        .kpi-value { font-size: 24px; font-weight: bold; color: #333; margin-top: 5px; }
-        .kpi-label { font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
-        
-        #loader { display: none; text-align: center; color: var(--primary); padding: 20px; font-weight: bold; }
-        .results-container { display: none; animation: fadeIn 0.5s; padding-bottom: 50px; }
+        .kpi-value { font-size: 20px; font-weight: bold; color: #333; }
+        .kpi-label { font-size: 11px; color: #666; text-transform: uppercase; }
 
-        /* --- 📱 RESPANSYWNOŚĆ (MOBILE FIX) --- */
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column; /* Jeden pod drugim */
-                height: auto; /* Wysokość dynamiczna */
-                overflow-y: auto; /* Pozwól przewijać całą stronę! */
-                -webkit-overflow-scrolling: touch;
-            }
-
-            .sidebar {
-                width: 100%; /* Pełna szerokość */
-                height: auto;
-                border-right: none;
-                border-bottom: 1px solid #ddd;
-                padding: 15px;
-                box-sizing: border-box;
-                overflow: visible; /* Nie ucinaj cienia */
-            }
-
-            .main {
-                width: 100%;
-                height: auto;
-                padding: 15px;
-                overflow: visible;
-                box-sizing: border-box;
-            }
-
-            #map {
-                height: 300px; /* Mniejsza mapa na telefon, łatwiej przewinąć */
-            }
-            
-            h2 { font-size: 1.2rem; }
-            .kpi-grid { grid-template-columns: 1fr; /* Kafelki jeden pod drugim */ }
-        }
-
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div class="sidebar">
-        <div class="logo-area">
-            <img src="https://cdn.pixabay.com/photo/2022/06/07/13/22/weather-7248402_1280.png" alt="Icon">
-            <div class="app-title">Solar Invest</div>
-        </div>
+    <header>
+        <img src="https://cdn.pixabay.com/photo/2022/06/07/13/22/weather-7248402_1280.png" alt="Logo">
+        <h1>Solar Invest</h1>
+    </header>
 
-        <div class="info-box">👇 1. Ustaw parametry i przewiń w dół do mapy!</div>
-
-        <div class="control-group">
-            <label>Powierzchnia dachu (m²)</label>
-            <input type="number" id="roofArea" value="30" oninput="updatePower()">
-            <div id="powerInfo" style="margin-top:5px; font-weight:bold; color:#0066CC">Moc: 5.77 kWp</div>
-        </div>
-
-        <div class="control-group">
-            <label>Horyzont inwestycji (lata): <span id="yearLabel">12</span></label>
-            <input type="range" id="years" min="1" max="30" value="12" oninput="updateYearLabel()">
-        </div>
-
-        <details>
-            <summary style="cursor:pointer; color:#0066CC; font-weight:bold; margin: 10px 0;">⚙️ Więcej parametrów</summary>
-            <div class="control-group" style="margin-top:10px;">
-                <label>Koszt (PLN)</label> <input type="number" id="cost" value="25000">
-                <label>Cena kupna (PLN)</label> <input type="number" id="priceBuy" value="1.15" step="0.01">
-                <label>Cena sprzedaży (PLN)</label> <input type="number" id="priceSell" value="0.50" step="0.01">
-                <label>Autokonsumpcja (%)</label> 
-                <input type="range" id="autoRate" min="0" max="100" value="25" oninput="document.getElementById('autoLabel').innerText = this.value + '%'">
-                <div style="text-align:right; font-weight:bold;" id="autoLabel">25%</div>
-            </div>
-        </details>
-    </div>
-
-    <div class="main">
-        <h2>🗺️ Wybierz lokalizację</h2>
+    <div class="viewport">
         
-        <select id="mapStyle" onchange="changeMapLayer()" style="margin-bottom: 15px; padding: 10px;">
-            <option value="sat">Satelitarna (Dachy)</option>
-            <option value="osm">Standardowa</option>
-            <option value="light">Jasna</option>
-        </select>
+        <div id="tab-settings" class="tab-content active">
+            <h2 style="color:var(--primary)">⚙️ Konfiguracja</h2>
+            <p style="color:#666; font-size:0.9em">Wprowadź dane techniczne i finansowe.</p>
 
-        <div id="map"></div>
-        <div id="loader">🔄 Analiza nasłonecznienia...</div>
+            <div class="control-group">
+                <label>Powierzchnia dachu (m²)</label>
+                <input type="number" id="roofArea" value="30" oninput="updatePower()">
+                <div style="margin-top:5px; font-weight:bold; color:var(--text-main)" id="powerInfo">Moc: 5.77 kWp</div>
+            </div>
 
-        <div id="results" class="results-container">
-            <h2 id="resTitle">📊 Wyniki finansowe</h2>
+            <div class="control-group">
+                <label>Horyzont (lata): <span id="yearLabel">12</span></label>
+                <input type="range" id="years" min="1" max="30" value="12" style="width:100%" oninput="updateYearLabel()">
+            </div>
+
+            <div class="control-group">
+                <label>Koszt inwestycji (PLN)</label>
+                <input type="number" id="cost" value="25000">
+                
+                <label>Cena kupna prądu (PLN)</label>
+                <input type="number" id="priceBuy" value="1.15" step="0.01">
+                
+                <label>Cena sprzedaży (PLN)</label>
+                <input type="number" id="priceSell" value="0.50" step="0.01">
+                
+                <label>Autokonsumpcja (%) <span id="autoLabel" style="float:right">25%</span></label>
+                <input type="range" id="autoRate" min="0" max="100" value="25" style="width:100%" oninput="document.getElementById('autoLabel').innerText = this.value + '%'">
+            </div>
             
-            <div class="kpi-grid">
-                <div class="kpi-card">
-                    <div class="kpi-label">Produkcja Roczna</div>
-                    <div class="kpi-value" id="solarRes">...</div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Zysk po <span id="kpiYear">12</span> latach</div>
-                    <div class="kpi-value" id="financialRes">...</div>
-                </div>
-            </div>
-
-            <div class="kpi-card" style="margin-bottom: 20px;">
-                 <div class="kpi-label">Zwrot inwestycji (ROI)</div>
-                 <div class="kpi-value" id="breakEvenRes">...</div>
-            </div>
-
-            <h3 style="margin-top:30px">Przepływy pieniężne</h3>
-            <canvas id="chartCanvas" height="200"></canvas>
+            <button onclick="switchTab('map')" style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:10px; font-size:16px; font-weight:bold; margin-top:10px;">
+                Przejdź do Mapy ➔
+            </button>
         </div>
+
+        <div id="tab-map" class="tab-content">
+            <h2 style="color:var(--primary)">🗺️ Mapa i Analiza</h2>
+            <p style="color:#666; font-size:0.9em">Kliknij na mapie, aby wykonać symulację.</p>
+
+            <select id="mapStyle" onchange="changeMapLayer()" style="margin-bottom:10px">
+                <option value="sat">Satelitarna (Widok dachu)</option>
+                <option value="osm">Standardowa</option>
+            </select>
+
+            <div id="map"></div>
+            <div id="loader" style="display:none; text-align:center; color:var(--primary); font-weight:bold; margin:10px">🔄 Analiza...</div>
+
+            <div id="results" class="results-container">
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-label">Produkcja</div>
+                        <div class="kpi-value" id="solarRes">...</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Stan konta (<span id="kpiYear">12</span> lat)</div>
+                        <div class="kpi-value" id="financialRes">...</div>
+                    </div>
+                </div>
+                
+                <div class="kpi-card" style="margin-bottom:15px">
+                    <div class="kpi-label">Zwrot inwestycji (ROI)</div>
+                    <div class="kpi-value" id="breakEvenRes">...</div>
+                </div>
+
+                <h3 style="font-size:16px; margin-bottom:10px;">Wykres zwrotu</h3>
+                <canvas id="chartCanvas" height="150"></canvas>
+            </div>
+        </div>
+
     </div>
+
+    <nav class="bottom-nav">
+        <button class="nav-btn active" onclick="switchTab('settings')" id="btn-settings">
+            <i>⚙️</i>
+            Ustawienia
+        </button>
+        <button class="nav-btn" onclick="switchTab('map')" id="btn-map">
+            <i>🗺️</i>
+            Mapa
+        </button>
+    </nav>
 
     <script>
+        // --- ZMIENNE GLOBALNE ---
         let map, currentLayer, marker, chartInstance;
         let calculatedPower = 5.77;
 
+        // --- PRZEŁĄCZANIE ZAKŁADEK ---
+        function switchTab(tabName) {
+            // Ukryj wszystko
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+
+            // Pokaż wybrane
+            if (tabName === 'settings') {
+                document.getElementById('tab-settings').classList.add('active');
+                document.getElementById('btn-settings').classList.add('active');
+            } else {
+                document.getElementById('tab-map').classList.add('active');
+                document.getElementById('btn-map').classList.add('active');
+                
+                // CRITICAL FIX: Mapa musi się przeliczyć po odkryciu
+                setTimeout(() => { map.invalidateSize(); }, 100);
+            }
+        }
+
+        // --- LOGIKA MAPY ---
         function initMap() {
-            map = L.map('map', { scrollWheelZoom: false }).setView([52.0, 19.0], 6);
+            map = L.map('map', { zoomControl: false }).setView([52.0, 19.0], 6);
             
             window.layers = {
-                osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }),
-                sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }),
-                light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: 'CartoDB' })
+                osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+                sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
             };
 
             currentLayer = window.layers.sat;
@@ -255,6 +283,7 @@
             currentLayer.addTo(map);
         }
 
+        // --- OBLICZENIA ---
         function updatePower() {
             const area = parseFloat(document.getElementById('roofArea').value) || 0;
             calculatedPower = area / 5.2;
@@ -272,10 +301,8 @@
             document.getElementById('loader').style.display = 'block';
             document.getElementById('results').style.display = 'none';
 
-            // Scroll do mapy (UX)
-            document.getElementById('map').scrollIntoView({behavior: "smooth", block: "center"});
-
             try {
+                // API Call
                 const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=2022-01-01&end_date=2022-12-31&daily=shortwave_radiation_sum&timezone=auto`;
                 const resp = await fetch(url);
                 const data = await resp.json();
@@ -284,13 +311,12 @@
                 const radKwh = radSum * 0.277;
                 const prodStart = radKwh * calculatedPower * 0.82;
 
-                // Obliczenia
+                // Finance Logic
                 const cost = parseFloat(document.getElementById('cost').value);
                 let pBuy = parseFloat(document.getElementById('priceBuy').value);
                 let pSell = parseFloat(document.getElementById('priceSell').value);
-                const infl = 0.10; // Uproszczone dla demo
                 const auto = parseFloat(document.getElementById('autoRate').value)/100;
-
+                
                 let flow = [-cost];
                 let cum = -cost;
 
@@ -308,6 +334,9 @@
                 updateKPIs();
                 drawChart(flow);
                 document.getElementById('results').style.display = 'block';
+                
+                // Scroll do wyników
+                document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
 
             } catch(e) { alert("Błąd: " + e); }
             finally { document.getElementById('loader').style.display = 'none'; }
@@ -317,11 +346,11 @@
             const yr = document.getElementById('years').value;
             const bal = window.lastData[yr];
             const be = window.lastData.findIndex(x => x >= 0);
-
+            
             document.getElementById('solarRes').innerText = window.lastProd.toFixed(0) + " kWh";
             const finEl = document.getElementById('financialRes');
-            finEl.innerText = bal.toFixed(0) + " PLN";
-            finEl.style.color = bal > 0 ? "green" : "red";
+            finEl.innerText = bal.toFixed(0) + " zł";
+            finEl.style.color = bal > 0 ? "green" : "#d9534f";
             document.getElementById('breakEvenRes').innerText = be > 0 ? be + ". rok" : "> 30 lat";
         }
 
@@ -345,11 +374,12 @@
             });
         }
 
-        // PWA Service Worker
+        // PWA
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js');
         }
 
+        // Start
         initMap();
         updatePower();
     </script>
