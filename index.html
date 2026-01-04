@@ -171,4 +171,187 @@
 
         <div class="control-group">
             <label>Horyzont inwestycji (lata): <span id="yearLabel">12</span></label>
-            <input type="range" id="years" min="1" max="30" value="12" oninput="updateYear
+            <input type="range" id="years" min="1" max="30" value="12" oninput="updateYearLabel()">
+        </div>
+
+        <details>
+            <summary style="cursor:pointer; color:#0066CC; font-weight:bold; margin: 10px 0;">⚙️ Więcej parametrów</summary>
+            <div class="control-group" style="margin-top:10px;">
+                <label>Koszt (PLN)</label> <input type="number" id="cost" value="25000">
+                <label>Cena kupna (PLN)</label> <input type="number" id="priceBuy" value="1.15" step="0.01">
+                <label>Cena sprzedaży (PLN)</label> <input type="number" id="priceSell" value="0.50" step="0.01">
+                <label>Autokonsumpcja (%)</label> 
+                <input type="range" id="autoRate" min="0" max="100" value="25" oninput="document.getElementById('autoLabel').innerText = this.value + '%'">
+                <div style="text-align:right; font-weight:bold;" id="autoLabel">25%</div>
+            </div>
+        </details>
+    </div>
+
+    <div class="main">
+        <h2>🗺️ Wybierz lokalizację</h2>
+        
+        <select id="mapStyle" onchange="changeMapLayer()" style="margin-bottom: 15px; padding: 10px;">
+            <option value="sat">Satelitarna (Dachy)</option>
+            <option value="osm">Standardowa</option>
+            <option value="light">Jasna</option>
+        </select>
+
+        <div id="map"></div>
+        <div id="loader">🔄 Analiza nasłonecznienia...</div>
+
+        <div id="results" class="results-container">
+            <h2 id="resTitle">📊 Wyniki finansowe</h2>
+            
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Produkcja Roczna</div>
+                    <div class="kpi-value" id="solarRes">...</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Zysk po <span id="kpiYear">12</span> latach</div>
+                    <div class="kpi-value" id="financialRes">...</div>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="margin-bottom: 20px;">
+                 <div class="kpi-label">Zwrot inwestycji (ROI)</div>
+                 <div class="kpi-value" id="breakEvenRes">...</div>
+            </div>
+
+            <h3 style="margin-top:30px">Przepływy pieniężne</h3>
+            <canvas id="chartCanvas" height="200"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let map, currentLayer, marker, chartInstance;
+        let calculatedPower = 5.77;
+
+        function initMap() {
+            map = L.map('map', { scrollWheelZoom: false }).setView([52.0, 19.0], 6);
+            
+            window.layers = {
+                osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }),
+                sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }),
+                light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: 'CartoDB' })
+            };
+
+            currentLayer = window.layers.sat;
+            currentLayer.addTo(map);
+
+            map.on('click', async function(e) {
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+                if (marker) map.removeLayer(marker);
+                marker = L.marker([lat, lng]).addTo(map);
+                runSimulation(lat, lng);
+            });
+        }
+
+        function changeMapLayer() {
+            const style = document.getElementById('mapStyle').value;
+            map.removeLayer(currentLayer);
+            currentLayer = window.layers[style];
+            currentLayer.addTo(map);
+        }
+
+        function updatePower() {
+            const area = parseFloat(document.getElementById('roofArea').value) || 0;
+            calculatedPower = area / 5.2;
+            document.getElementById('powerInfo').innerText = `Moc: ${calculatedPower.toFixed(2)} kWp`;
+        }
+
+        function updateYearLabel() {
+            const val = document.getElementById('years').value;
+            document.getElementById('yearLabel').innerText = val;
+            document.getElementById('kpiYear').innerText = val;
+            if(window.lastData) updateKPIs();
+        }
+
+        async function runSimulation(lat, lng) {
+            document.getElementById('loader').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+
+            // Scroll do mapy (UX)
+            document.getElementById('map').scrollIntoView({behavior: "smooth", block: "center"});
+
+            try {
+                const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=2022-01-01&end_date=2022-12-31&daily=shortwave_radiation_sum&timezone=auto`;
+                const resp = await fetch(url);
+                const data = await resp.json();
+
+                const radSum = data.daily.shortwave_radiation_sum.reduce((a,b)=>a+b,0);
+                const radKwh = radSum * 0.277;
+                const prodStart = radKwh * calculatedPower * 0.82;
+
+                // Obliczenia
+                const cost = parseFloat(document.getElementById('cost').value);
+                let pBuy = parseFloat(document.getElementById('priceBuy').value);
+                let pSell = parseFloat(document.getElementById('priceSell').value);
+                const infl = 0.10; // Uproszczone dla demo
+                const auto = parseFloat(document.getElementById('autoRate').value)/100;
+
+                let flow = [-cost];
+                let cum = -cost;
+
+                for(let i=1; i<=30; i++) {
+                    let prod = prodStart * (1 - (0.005*(i-1)));
+                    let savings = (prod * auto * pBuy) + (prod * (1-auto) * pSell) - 150;
+                    cum += savings;
+                    flow.push(cum);
+                    pBuy *= 1.1; pSell *= 1.1;
+                }
+
+                window.lastData = flow;
+                window.lastProd = prodStart;
+
+                updateKPIs();
+                drawChart(flow);
+                document.getElementById('results').style.display = 'block';
+
+            } catch(e) { alert("Błąd: " + e); }
+            finally { document.getElementById('loader').style.display = 'none'; }
+        }
+
+        function updateKPIs() {
+            const yr = document.getElementById('years').value;
+            const bal = window.lastData[yr];
+            const be = window.lastData.findIndex(x => x >= 0);
+
+            document.getElementById('solarRes').innerText = window.lastProd.toFixed(0) + " kWh";
+            const finEl = document.getElementById('financialRes');
+            finEl.innerText = bal.toFixed(0) + " PLN";
+            finEl.style.color = bal > 0 ? "green" : "red";
+            document.getElementById('breakEvenRes').innerText = be > 0 ? be + ". rok" : "> 30 lat";
+        }
+
+        function drawChart(data) {
+            const ctx = document.getElementById('chartCanvas').getContext('2d');
+            if(chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length:31},(_,i)=>i),
+                    datasets: [{
+                        label: 'Bilans (PLN)',
+                        data: data,
+                        borderColor: '#0066CC',
+                        backgroundColor: 'rgba(0,102,204,0.1)',
+                        fill: true,
+                        pointRadius: 0
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: {display:false} } }
+            });
+        }
+
+        // PWA Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js');
+        }
+
+        initMap();
+        updatePower();
+    </script>
+</body>
+</html>
