@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Invest - Web Version</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --primary: #0066CC;
+            --bg-sidebar: #F0F7FF;
+            --text-main: #004080;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            color: #333;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 350px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid #CCE5FF;
+            padding: 20px;
+            overflow-y: auto;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .logo-area { text-align: center; margin-bottom: 20px; }
+        .logo-area img { width: 80px; }
+        .app-title { font-size: 24px; font-weight: bold; color: var(--text-main); margin-top: 10px; }
+
+        .control-group {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #dae8f5;
+        }
+
+        label { display: block; font-weight: bold; color: var(--primary); font-size: 0.9em; margin-bottom: 5px; }
+        input[type="number"], input[type="range"] { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 10px; }
+        
+        .info-box {
+            background-color: #e8f4ff;
+            color: #004080;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.85em;
+            border-left: 4px solid var(--primary);
+        }
+
+        /* MAIN CONTENT */
+        .main { flex: 1; padding: 30px; overflow-y: auto; background-color: white; }
+        
+        h2 { color: var(--text-main); border-bottom: 1px solid #eee; padding-bottom: 10px; }
+
+        /* MAPA */
+        #map { height: 400px; width: 100%; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1;}
+
+        /* WYNIKI (KPI) */
+        .results-container { display: none; /* Ukryte na start */ animation: fadeIn 0.5s; }
+        
+        .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        
+        .kpi-card {
+            background-color: #F8FDFF;
+            border: 1px solid #D1E9FF;
+            border-left: 5px solid var(--primary);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        
+        .kpi-value { font-size: 28px; font-weight: bold; color: #333; }
+        .kpi-label { font-size: 14px; color: #666; margin-bottom: 5px; }
+        .delta { font-size: 12px; font-weight: bold; }
+        .delta.positive { color: green; }
+        .delta.negative { color: red; }
+
+        /* LOADING SPINNER */
+        #loader { display: none; text-align: center; color: var(--primary); font-weight: bold; margin: 20px 0; }
+
+        /* RESPANSYWNOŚĆ NA TELEFON */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #ccc; }
+            .kpi-grid { grid-template-columns: 1fr; }
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0066CC">
+    <link rel="apple-touch-icon" href="https://cdn.pixabay.com/photo/2022/06/07/13/22/weather-7248402_1280.png">
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="logo-area">
+            <img src="https://cdn.pixabay.com/photo/2022/06/07/13/22/weather-7248402_1280.png" alt="Weather Icon">
+            <div class="app-title">Solar Invest</div>
+        </div>
+
+        <div class="control-group">
+            <label>1. Parametry Instalacji</label>
+            
+            <label>Powierzchnia dachu (m²)</label>
+            <input type="number" id="roofArea" value="30" oninput="updatePower()">
+            
+            <div id="powerInfo" class="info-box" style="margin-bottom: 10px;">
+                ⚡ Moc: <b>5.77 kWp</b>
+            </div>
+
+            <label>Koszt inwestycji (PLN)</label>
+            <input type="number" id="cost" value="25000">
+            
+            <label>Autokonsumpcja (%)</label>
+            <input type="range" id="autoRate" min="0" max="100" value="25" oninput="document.getElementById('autoLabel').innerText = this.value + '%'">
+            <span id="autoLabel" style="float:right; font-size:0.8em; font-weight:bold;">25%</span>
+        </div>
+
+        <div class="control-group">
+            <label>2. Parametry Rynku</label>
+            <label>Cena zakupu (PLN)</label>
+            <input type="number" id="priceBuy" value="1.15" step="0.01">
+            <label>Cena sprzedaży (PLN)</label>
+            <input type="number" id="priceSell" value="0.50" step="0.01">
+            <label>Inflacja (%)</label>
+            <input type="number" id="inflation" value="10">
+        </div>
+
+        <div class="control-group">
+            <label>3. Twój Cel (Lata)</label>
+            <input type="range" id="years" min="1" max="30" value="12" oninput="updateYearLabel()">
+            <div style="text-align: center; font-weight: bold; color: var(--primary);">
+                <span id="yearLabel">12</span> lat
+            </div>
+        </div>
+
+        <div class="info-box">👇 Wybierz styl mapy i kliknij w dach!</div>
+    </div>
+
+    <div class="main">
+        <h2 id="mainTitle">🗺️ Analiza Rentowności</h2>
+        
+        <div style="margin-bottom: 10px;">
+            <label style="display:inline; margin-right:10px;">Widok:</label>
+            <select id="mapStyle" onchange="changeMapLayer()" style="padding: 5px;">
+                <option value="sat">Satelitarna (Dachy)</option>
+                <option value="osm">Standardowa</option>
+                <option value="light">Jasna</option>
+            </select>
+        </div>
+
+        <div id="map"></div>
+        <div id="loader">🔄 Pobieranie danych satelitarnych i obliczenia...</div>
+
+        <div id="results" class="results-container">
+            <h3>📊 Twój Wynik Finansowy</h3>
+            
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Warunki lokalne</div>
+                    <div class="kpi-value" style="font-size: 20px;" id="solarRes">...</div>
+                    <div class="delta">Produkcja roczna</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label" id="financialTitle">Stan konta po 12 latach</div>
+                    <div class="kpi-value" id="financialRes">...</div>
+                    <div class="delta" id="roiDelta">Zysk netto</div>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="margin-bottom: 20px;">
+                 <div class="kpi-label">Moment zwrotu (Break-even)</div>
+                 <div class="kpi-value" id="breakEvenRes">...</div>
+            </div>
+
+            <h3>Symulacja Cash Flow (30 lat)</h3>
+            <canvas id="chartCanvas" height="100"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // --- ZMIENNE GLOBALNE ---
+        let map, currentLayer, marker, chartInstance;
+        let calculatedPower = 5.77;
+
+        // --- INICJALIZACJA MAPY (Leaflet) ---
+        function initMap() {
+            map = L.map('map').setView([52.0, 19.0], 6); // Polska
+            
+            // Warstwy
+            const layers = {
+                osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }),
+                sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }),
+                light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: 'CartoDB' })
+            };
+
+            currentLayer = layers.sat; // Domyślnie satelita
+            currentLayer.addTo(map);
+            
+            // Przechowujemy referencje do warstw, żeby je zmieniać
+            window.mapLayers = layers;
+
+            // Obsługa kliknięcia
+            map.on('click', async function(e) {
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+
+                // Pinezka
+                if (marker) map.removeLayer(marker);
+                marker = L.marker([lat, lng]).addTo(map);
+
+                // Uruchomienie logiki
+                runSimulation(lat, lng);
+            });
+        }
+
+        function changeMapLayer() {
+            const style = document.getElementById('mapStyle').value;
+            map.removeLayer(currentLayer);
+            currentLayer = window.mapLayers[style];
+            currentLayer.addTo(map);
+        }
+
+        // --- LOGIKA BIZNESOWA (Odpowiednik calculate_roi_advanced w Pythonie) ---
+        function updatePower() {
+            const area = parseFloat(document.getElementById('roofArea').value) || 0;
+            calculatedPower = area / 5.2;
+            document.getElementById('powerInfo').innerHTML = `⚡ Moc: <b>${calculatedPower.toFixed(2)} kWp</b>`;
+            
+            // Sugestia ceny (opcjonalnie)
+            const suggestedCost = calculatedPower * 4500;
+            // Możemy zaktualizować placeholder, ale nie wartość, żeby nie irytować usera
+        }
+
+        function updateYearLabel() {
+            const val = document.getElementById('years').value;
+            document.getElementById('yearLabel').innerText = val;
+            document.getElementById('mainTitle').innerText = `🗺️ Analiza Rentowności (Perspektywa: ${val} lat)`;
+            
+            // Jeśli wyniki są już widoczne, zaktualizuj tylko tekst KPI bez ponownego pobierania API
+            if(window.lastChartData) updateKPIsOnly(); 
+        }
+
+        // --- GŁÓWNA FUNKCJA SYMULACJI ---
+        async function runSimulation(lat, lng) {
+            document.getElementById('loader').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+
+            try {
+                // 1. POBRANIE DANYCH (Open-Meteo API)
+                const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=2022-01-01&end_date=2022-12-31&daily=shortwave_radiation_sum&timezone=auto`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                // Suma promieniowania (MJ/m2) -> konwersja na kWh/m2 (x 0.277)
+                const totalRad = data.daily.shortwave_radiation_sum.reduce((a, b) => a + b, 0);
+                const radKwh = totalRad * 0.277;
+
+                // Produkcja roczna (Start)
+                const prodStart = radKwh * calculatedPower * 0.82; // Performance Ratio 0.82
+
+                // 2. OBLICZENIA FINANSOWE (Pętla 30 lat)
+                const cost = parseFloat(document.getElementById('cost').value);
+                let priceBuy = parseFloat(document.getElementById('priceBuy').value);
+                let priceSell = parseFloat(document.getElementById('priceSell').value);
+                const inflation = parseFloat(document.getElementById('inflation').value) / 100;
+                const autoRate = parseFloat(document.getElementById('autoRate').value) / 100;
+
+                let cashFlow = [-cost]; // Oś Y wykresu
+                let cumulative = -cost;
+                const degradation = 0.005;
+                const opex = 150;
+
+                for (let year = 1; year <= 30; year++) {
+                    // Degradacja
+                    const yearlyProd = prodStart * (1 - (degradation * (year - 1)));
+                    
+                    // Podział energii
+                    const used = yearlyProd * autoRate;
+                    const sold = yearlyProd - used;
+
+                    // Kasa
+                    const savings = used * priceBuy;
+                    const earnings = sold * priceSell;
+                    const totalBenefit = savings + earnings - opex;
+
+                    cumulative += totalBenefit;
+                    cashFlow.push(cumulative);
+
+                    // Inflacja
+                    priceBuy *= (1 + inflation);
+                    priceSell *= (1 + inflation);
+                }
+
+                // Zapisz dane globalnie do odświeżania suwakiem
+                window.lastChartData = cashFlow;
+                window.lastProd = prodStart;
+                window.lastRad = radKwh;
+
+                // 3. WYŚWIETLENIE WYNIKÓW
+                updateKPIsOnly();
+                drawChart(cashFlow);
+
+            } catch (err) {
+                alert("Błąd pobierania danych: " + err);
+            } finally {
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('results').style.display = 'block';
+            }
+        }
+
+        function updateKPIsOnly() {
+            if (!window.lastChartData) return;
+
+            const userYears = parseInt(document.getElementById('years').value);
+            const balance = window.lastChartData[userYears];
+            
+            // Szukanie roku zwrotu (pierwszy rok > 0)
+            const breakEvenIndex = window.lastChartData.findIndex(val => val >= 0);
+            const breakEvenText = breakEvenIndex > 0 ? `${breakEvenIndex}. rok` : "> 30 lat";
+
+            // Formatowanie liczb
+            const fmt = (num) => new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 }).format(num);
+
+            // Wypełnianie HTML
+            document.getElementById('solarRes').innerHTML = `${fmt(window.lastProd)} kWh<br><span style="font-size:0.6em; color:#666">Rad: ${window.lastRad.toFixed(0)} kWh/m²</span>`;
+            
+            const finEl = document.getElementById('financialRes');
+            finEl.innerText = fmt(balance) + " PLN";
+            finEl.style.color = balance > 0 ? "green" : "#d9534f";
+            
+            document.getElementById('financialTitle').innerText = `Stan konta po ${userYears} latach`;
+            document.getElementById('breakEvenRes').innerText = breakEvenText;
+            document.getElementById('breakEvenRes').style.color = breakEvenIndex > 0 ? "#0066CC" : "gray";
+        }
+
+        function drawChart(data) {
+            const ctx = document.getElementById('chartCanvas').getContext('2d');
+            const labels = Array.from({length: 31}, (_, i) => i);
+
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Bilans narastająco (PLN)',
+                        data: data,
+                        borderColor: '#0066CC',
+                        backgroundColor: 'rgba(0, 102, 204, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        y: { grid: { color: '#eee' } },
+                        x: { grid: { display: false } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: (ctx) => ctx.raw.toFixed(0) + " PLN" } }
+                    }
+                }
+            });
+        }
+
+        // Start
+        initMap();
+        updatePower(); // Przelicz na start
+    </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js')
+      .then(() => console.log('Service Worker zarejestrowany!'));
+     }
+    </script>
+</body>
+</html>

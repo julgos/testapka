@@ -1,0 +1,20 @@
+{
+  "name": "Solar Invest",
+  "short_name": "SolarInvest",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F0F7FF",
+  "theme_color": "#0066CC",
+  "icons": [
+    {
+      "src": "https://cdn.pixabay.com/photo/2022/06/07/13/22/weather-7248402_1280.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn.pixabay.com/photo/2022/06/07/13/22/weather-7248402_1280.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
